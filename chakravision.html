@@ -155,6 +155,8 @@
       align-items: center;
       justify-content: center;
       pointer-events: none;
+      position: relative;
+      z-index: 11;
     }
 
     #gesture-display {
@@ -162,6 +164,12 @@
       opacity: 0;
       transform: scale(0.8) translateY(20px);
       transition: opacity 0.2s, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      padding: 20px 40px;
+      border-radius: 16px;
+      background: rgba(3, 5, 7, 0.65);
+      border: 1px solid rgba(0, 232, 168, 0.35);
+      box-shadow: 0 0 40px rgba(0, 232, 168, 0.15);
+      backdrop-filter: blur(12px);
     }
     #gesture-display.visible {
       opacity: 1;
@@ -171,14 +179,17 @@
     #gesture-name {
       font-family: 'Orbitron', monospace;
       font-weight: 900;
-      font-size: clamp(42px, 8vw, 90px);
-      letter-spacing: 6px;
-      line-height: 1;
-      text-transform: uppercase;
+      font-size: clamp(36px, 7vw, 80px);
+      letter-spacing: 0.08em;
+      line-height: 1.15;
+      text-transform: none;
     }
     #gesture-name.KAGEBUNSHIN {
       color: #00e8a8;
-      text-shadow: 0 0 30px rgba(0,232,168,0.85), 0 0 80px rgba(0,200,160,0.45);
+      text-shadow:
+        0 0 30px rgba(0,232,168,0.85),
+        0 0 80px rgba(0,200,160,0.45),
+        0 2px 4px rgba(0,0,0,0.8);
     }
 
     #gesture-kanji {
@@ -443,7 +454,7 @@
   <!-- Center gesture display -->
   <div id="gesture-zone">
     <div id="gesture-display">
-      <div id="gesture-name" class="KAGEBUNSHIN">KAGEBUNSHIN</div>
+      <div id="gesture-name" class="KAGEBUNSHIN">Kage Bunshin</div>
       <div id="gesture-kanji">影分身の術 · EXÉRCITO DE CLONES</div>
     </div>
   </div>
@@ -530,19 +541,25 @@ function getWrist(lm) { return lm[0]; }
 class KageBunshinSealAnalyzer {
   static fingerExtended(lm, tipId, mcpId) {
     const wrist = lm[0];
-    return dist2D(lm[tipId], wrist) > dist2D(lm[mcpId], wrist) * 1.08;
+    return dist2D(lm[tipId], wrist) > dist2D(lm[mcpId], wrist) * 1.02;
   }
   static fingerCurled(lm, tipId, mcpId) {
     const wrist = lm[0];
-    return dist2D(lm[tipId], wrist) < dist2D(lm[mcpId], wrist) * 1.14;
+    return dist2D(lm[tipId], wrist) < dist2D(lm[mcpId], wrist) * 1.22;
   }
-  /** Formato “dois dedos em barra” (Tigre / selo do clone). */
-  static isTwoFingerBarSeal(lm) {
-    if (!this.fingerExtended(lm, 8, 5) || !this.fingerExtended(lm, 12, 9)) return false;
-    if (!this.fingerCurled(lm, 16, 13) || !this.fingerCurled(lm, 20, 17)) return false;
-    return true;
+  /**
+   * Quão “selo de dois dedos” a mão está: índice+médio para fora, anel+mindinho mais fechados.
+   * Valores mais baixos ainda permitem detetar o gesto (câmera frontal distorce a vista).
+   */
+  static twoFingerBarStrength(lm) {
+    let s = 0;
+    if (this.fingerExtended(lm, 8, 5)) s += 0.28;
+    if (this.fingerExtended(lm, 12, 9)) s += 0.28;
+    if (this.fingerCurled(lm, 16, 13)) s += 0.22;
+    if (this.fingerCurled(lm, 20, 17)) s += 0.22;
+    return s;
   }
-  /** Direção normalizada do “feixe” índice+médio a partir do pulso. */
+  /** Direção do feixe índice+médio (2D imagem). */
   static barDirection(lm) {
     const mx = (lm[8].x + lm[12].x) * 0.5 - lm[0].x;
     const my = (lm[8].y + lm[12].y) * 0.5 - lm[0].y;
@@ -550,32 +567,40 @@ class KageBunshinSealAnalyzer {
     return { x: mx / len, y: my / len };
   }
   /**
-   * Retorna confiança [0,1]: duas mãos em cruz (perpendiculares), pulso perto.
+   * Cruz: pulsos relativamente perto + barras em ângulo (~perpendicular em 2D).
+   * Não exigimos “uma horizontal e outra vertical” — em webcam frontal isso falhava quase sempre.
    */
   static scoreCrossSeal(h1lm, h2lm) {
-    if (!this.isTwoFingerBarSeal(h1lm) || !this.isTwoFingerBarSeal(h2lm)) return 0;
+    const b1 = this.twoFingerBarStrength(h1lm);
+    const b2 = this.twoFingerBarStrength(h2lm);
+    if (b1 < 0.65 || b2 < 0.65) return 0;
     const w1 = getWrist(h1lm), w2 = getWrist(h2lm);
-    if (dist2D(w1, w2) > 0.32) return 0;
+    const wristDist = dist2D(w1, w2);
+    if (wristDist > 0.52) return 0;
     const d1 = this.barDirection(h1lm);
     const d2 = this.barDirection(h2lm);
     const dot = Math.abs(d1.x * d2.x + d1.y * d2.y);
-    if (dot > 0.38) return 0;
-    const h1Horiz = Math.abs(d1.x) >= Math.abs(d1.y);
-    const h2Horiz = Math.abs(d2.x) >= Math.abs(d2.y);
-    if (h1Horiz === h2Horiz) return 0;
-    return 0.72 + (0.28 * (1 - dot / 0.38));
+    if (dot > 0.72) return 0;
+    const perp = 1 - dot / 0.72;
+    const near = 1 - Math.min(1, wristDist / 0.52);
+    const barQual = (b1 + b2) * 0.5;
+    return 0.35 + 0.3 * perp + 0.2 * near + 0.15 * barQual;
   }
 }
 
 function runGestureEngine() {
-  if (gestureBuffer.length < 10) return null;
-  const lastFrame = gestureBuffer[gestureBuffer.length - 1];
-  if (!lastFrame.hands || lastFrame.hands.length < 2) return null;
-  const score = KageBunshinSealAnalyzer.scoreCrossSeal(
-    lastFrame.hands[0].landmarks,
-    lastFrame.hands[1].landmarks
-  );
-  return score > 0.5 ? 'KAGEBUNSHIN' : null;
+  if (gestureBuffer.length < 6) return null;
+  const recent = gestureBuffer.slice(-10);
+  let best = 0;
+  for (const f of recent) {
+    if (!f.hands || f.hands.length < 2) continue;
+    const s = KageBunshinSealAnalyzer.scoreCrossSeal(
+      f.hands[0].landmarks,
+      f.hands[1].landmarks
+    );
+    if (s > best) best = s;
+  }
+  return best > 0.48 ? 'KAGEBUNSHIN' : null;
 }
 
 // ═══════════════════════════════════════════════════════
@@ -616,22 +641,17 @@ class Particle {
 }
 
 /**
- * Kage Bunshin: vários “eus” a partir do frame atual do vídeo (estilo anime).
+ * Kage Bunshin: vários “eus” desenhando o feed da webcam em tempo real
+ * (o canvas e o vídeo já usam scaleX(-1) no CSS — não espelhar de novo aqui).
  */
 class KageBunshinEffect {
   constructor(videoEl, canvasW, canvasH) {
     this.life = 280;
     this.t = 0;
     this.particles = [];
+    this.video = videoEl;
     this.canvasW = canvasW;
     this.canvasH = canvasH;
-    const vw = videoEl.videoWidth || 640;
-    const vh = videoEl.videoHeight || 480;
-    this.snap = document.createElement('canvas');
-    this.snap.width = vw;
-    this.snap.height = vh;
-    const sctx = this.snap.getContext('2d');
-    sctx.drawImage(videoEl, 0, 0, vw, vh);
     const n = 9;
     const cx = canvasW * 0.5;
     const cy = canvasH * 0.38;
@@ -642,11 +662,18 @@ class KageBunshinEffect {
       this.clones.push({
         x: cx + Math.cos(ang) * radius + (Math.random() - 0.5) * 50,
         y: cy + Math.sin(ang) * radius * 0.85 + (Math.random() - 0.5) * 40,
-        scale: 0.2 + Math.random() * 0.11,
-        rot: (Math.random() - 0.5) * 0.4,
+        scale: 0.32 + Math.random() * 0.18,
+        rot: (Math.random() - 0.5) * 0.35,
         wobble: Math.random() * Math.PI * 2
       });
     }
+  }
+  /** Dimensões intrínsecas do vídeo (obrigatório para drawImage válido). */
+  _videoSize() {
+    const vw = this.video.videoWidth;
+    const vh = this.video.videoHeight;
+    if (vw > 0 && vh > 0) return { vw, vh };
+    return null;
   }
   update() {
     this.t++;
@@ -665,27 +692,28 @@ class KageBunshinEffect {
     this.particles = this.particles.filter(p => { p.update(); return p.alive; });
   }
   draw(ctx) {
+    const size = this._videoSize();
+    if (!size) return;
+    const { vw, vh } = size;
     const alpha = Math.min(1, this.life / 35);
     const globalFade = Math.min(1, this.life / 40);
-    const vw = this.snap.width;
-    const vh = this.snap.height;
-    const baseW = Math.min(200, vw * 0.42);
+    const baseW = Math.min(320, this.canvasW * 0.28);
     const baseH = baseW * (vh / vw);
     this.particles.forEach(p => p.draw(ctx));
+    const v = this.video;
     for (const c of this.clones) {
       const wobble = Math.sin(this.t * 0.08 + c.wobble) * 5;
       const w = baseW * c.scale * globalFade;
       const h = baseH * c.scale * globalFade;
       ctx.save();
-      ctx.globalAlpha = 0.52 * alpha * globalFade;
+      ctx.globalAlpha = 0.72 * alpha * globalFade;
       ctx.translate(c.x + wobble, c.y);
       ctx.rotate(c.rot);
-      ctx.scale(-1, 1);
-      ctx.shadowColor = 'rgba(0,255,200,0.45)';
-      ctx.shadowBlur = 28;
-      ctx.drawImage(this.snap, -w * 0.5, -h * 0.5, w, h);
-      ctx.globalAlpha = 0.35 * alpha * globalFade;
-      ctx.strokeStyle = 'rgba(0,232,168,0.5)';
+      ctx.shadowColor = 'rgba(0,255,200,0.5)';
+      ctx.shadowBlur = 22;
+      ctx.drawImage(v, 0, 0, vw, vh, -w * 0.5, -h * 0.5, w, h);
+      ctx.globalAlpha = 0.45 * alpha * globalFade;
+      ctx.strokeStyle = 'rgba(0,232,168,0.55)';
       ctx.lineWidth = 2;
       ctx.strokeRect(-w * 0.5, -h * 0.5, w, h);
       ctx.restore();
@@ -711,7 +739,23 @@ class KageBunshinEffect {
 }
 
 function spawnEffect() {
-  activeEffects.push(new KageBunshinEffect(video, canvas.width, canvas.height));
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const push = () => activeEffects.push(new KageBunshinEffect(video, cw, ch));
+  if (video.videoWidth > 0 && video.videoHeight > 0) {
+    push();
+    return;
+  }
+  let tries = 0;
+  const wait = () => {
+    tries++;
+    if (video.videoWidth > 0 && video.videoHeight > 0) {
+      push();
+      return;
+    }
+    if (tries < 90) requestAnimationFrame(wait);
+  };
+  requestAnimationFrame(wait);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -874,8 +918,8 @@ function triggerGesture(name) {
   const nameEl  = document.getElementById('gesture-name');
   const kanjiEl = document.getElementById('gesture-kanji');
 
-  nameEl.className = name;
-  nameEl.textContent = name;
+  nameEl.className = 'KAGEBUNSHIN';
+  nameEl.textContent = 'Kage Bunshin';
   kanjiEl.textContent = KAGEBUNSHIN_KANJI;
 
   display.classList.add('visible');
