@@ -184,17 +184,17 @@ class KageBunshinEffect {
   update() {
     this.t++;
     this.life--;
-    if (this.t % 3 === 0) {
-      const cx = this.canvasW * 0.5 + (Math.random() - 0.5) * 120;
-      const cy = this.canvasH * 0.35;
-      this.particles.push(new Particle(
-        cx, cy,
-        Math.random() > 0.5 ? '#e8fff8' : '#7fffd4',
-        (Math.random() - 0.5) * 2,
-        -0.8 - Math.random() * 1.5,
-        0.6 + Math.random() * 0.35
-      ));
-    }
+    // if (this.t % 3 === 0) {
+    //   const cx = this.canvasW * 0.5 + (Math.random() - 0.5) * 120;
+    //   const cy = this.canvasH * 0.35;
+    //   this.particles.push(new Particle(
+    //     cx, cy,
+    //     Math.random() > 0.5 ? '#e8fff8' : '#7fffd4',
+    //     (Math.random() - 0.5) * 2,
+    //     -0.8 - Math.random() * 1.5,
+    //     0.6 + Math.random() * 0.35
+    //   ));
+    // }
     this.particles = this.particles.filter(p => { p.update(); return p.alive; });
   }
   draw(ctx) {
