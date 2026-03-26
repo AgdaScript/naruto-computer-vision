@@ -495,6 +495,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
 
 <script>
 // ═══════════════════════════════════════════════════════
@@ -609,6 +610,42 @@ function runGestureEngine() {
 
 const activeEffects = [];
 
+// ── Recorte da pessoa (MediaPipe Selfie Segmentation) ─────────────────
+let latestSegmentationMask = null;
+let personCutoutCanvas = null;
+let personCutoutCtx = null;
+
+function ensurePersonCutoutBuffer(vw, vh) {
+  if (!personCutoutCanvas || personCutoutCanvas.width !== vw || personCutoutCanvas.height !== vh) {
+    personCutoutCanvas = document.createElement('canvas');
+    personCutoutCanvas.width = vw;
+    personCutoutCanvas.height = vh;
+    personCutoutCtx = personCutoutCanvas.getContext('2d');
+  }
+}
+
+/**
+ * Atualiza canvas com só a pessoa (sem fundo), usando a máscara mais recente.
+ * Retorna o canvas ou null se ainda não houver máscara/vídeo.
+ */
+function updatePersonCutout(videoEl, mask) {
+  const vw = videoEl.videoWidth;
+  const vh = videoEl.videoHeight;
+  if (!vw || !vh || !mask) return null;
+  ensurePersonCutoutBuffer(vw, vh);
+  const mw = mask.width || mask.videoWidth || vw;
+  const mh = mask.height || mask.videoHeight || vh;
+  const wctx = personCutoutCtx;
+  wctx.save();
+  wctx.clearRect(0, 0, vw, vh);
+  wctx.drawImage(videoEl, 0, 0, vw, vh);
+  wctx.globalCompositeOperation = 'destination-in';
+  wctx.drawImage(mask, 0, 0, mw, mh, 0, 0, vw, vh);
+  wctx.globalCompositeOperation = 'source-over';
+  wctx.restore();
+  return personCutoutCanvas;
+}
+
 class Particle {
   constructor(x, y, color, vx, vy, life = 1) {
     this.x = x; this.y = y;
@@ -641,8 +678,8 @@ class Particle {
 }
 
 /**
- * Kage Bunshin: vários “eus” desenhando o feed da webcam em tempo real
- * (o canvas e o vídeo já usam scaleX(-1) no CSS — não espelhar de novo aqui).
+ * Kage Bunshin: 4 clones (2 à esquerda, 2 à direita do centro), só a pessoa
+ * (recorte via MediaPipe Selfie Segmentation — sem fundo).
  */
 class KageBunshinEffect {
   constructor(videoEl, canvasW, canvasH) {
@@ -652,23 +689,19 @@ class KageBunshinEffect {
     this.video = videoEl;
     this.canvasW = canvasW;
     this.canvasH = canvasH;
-    const n = 9;
     const cx = canvasW * 0.5;
-    const cy = canvasH * 0.38;
-    const radius = Math.min(canvasW, canvasH) * 0.34;
-    this.clones = [];
-    for (let i = 0; i < n; i++) {
-      const ang = (i / n) * Math.PI * 2 + (Math.random() - 0.5) * 0.15;
-      this.clones.push({
-        x: cx + Math.cos(ang) * radius + (Math.random() - 0.5) * 50,
-        y: cy + Math.sin(ang) * radius * 0.85 + (Math.random() - 0.5) * 40,
-        scale: 0.32 + Math.random() * 0.18,
-        rot: (Math.random() - 0.5) * 0.35,
-        wobble: Math.random() * Math.PI * 2
-      });
-    }
+    const side = Math.min(canvasW * 0.26, 320);
+    const leftX = cx - side;
+    const rightX = cx + side;
+    const yTop = canvasH * 0.2;
+    const yBot = canvasH * 0.55;
+    this.clones = [
+      { x: leftX, y: yTop },
+      { x: leftX, y: yBot },
+      { x: rightX, y: yTop },
+      { x: rightX, y: yBot }
+    ];
   }
-  /** Dimensões intrínsecas do vídeo (obrigatório para drawImage válido). */
   _videoSize() {
     const vw = this.video.videoWidth;
     const vh = this.video.videoHeight;
@@ -678,15 +711,15 @@ class KageBunshinEffect {
   update() {
     this.t++;
     this.life--;
-    if (this.t % 2 === 0) {
-      const cx = this.canvasW * 0.5 + (Math.random() - 0.5) * this.canvasW * 0.45;
-      const cy = this.canvasH * 0.32 + Math.random() * 100;
+    if (this.t % 3 === 0) {
+      const cx = this.canvasW * 0.5 + (Math.random() - 0.5) * 120;
+      const cy = this.canvasH * 0.35;
       this.particles.push(new Particle(
         cx, cy,
         Math.random() > 0.5 ? '#e8fff8' : '#7fffd4',
-        (Math.random() - 0.5) * 4,
-        -1.2 - Math.random() * 2.5,
-        0.55 + Math.random() * 0.45
+        (Math.random() - 0.5) * 2,
+        -0.8 - Math.random() * 1.5,
+        0.6 + Math.random() * 0.35
       ));
     }
     this.particles = this.particles.filter(p => { p.update(); return p.alive; });
@@ -697,43 +730,27 @@ class KageBunshinEffect {
     const { vw, vh } = size;
     const alpha = Math.min(1, this.life / 35);
     const globalFade = Math.min(1, this.life / 40);
-    const baseW = Math.min(320, this.canvasW * 0.28);
+    const baseW = Math.min(300, this.canvasW * 0.24);
     const baseH = baseW * (vh / vw);
+    const src = personCutoutCanvas &&
+      personCutoutCanvas.width === vw &&
+      personCutoutCanvas.height === vh
+      ? personCutoutCanvas
+      : null;
     this.particles.forEach(p => p.draw(ctx));
-    const v = this.video;
+    if (!src) return;
     for (const c of this.clones) {
-      const wobble = Math.sin(this.t * 0.08 + c.wobble) * 5;
-      const w = baseW * c.scale * globalFade;
-      const h = baseH * c.scale * globalFade;
+      const w = baseW * globalFade;
+      const h = baseH * globalFade;
+      const wobble = Math.sin(this.t * 0.06 + c.x) * 3;
       ctx.save();
-      ctx.globalAlpha = 0.72 * alpha * globalFade;
+      ctx.globalAlpha = 0.92 * alpha * globalFade;
       ctx.translate(c.x + wobble, c.y);
-      ctx.rotate(c.rot);
-      ctx.shadowColor = 'rgba(0,255,200,0.5)';
-      ctx.shadowBlur = 22;
-      ctx.drawImage(v, 0, 0, vw, vh, -w * 0.5, -h * 0.5, w, h);
-      ctx.globalAlpha = 0.45 * alpha * globalFade;
-      ctx.strokeStyle = 'rgba(0,232,168,0.55)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(-w * 0.5, -h * 0.5, w, h);
+      ctx.shadowColor = 'rgba(0,232,168,0.35)';
+      ctx.shadowBlur = 18;
+      ctx.drawImage(src, 0, 0, vw, vh, -w * 0.5, -h * 0.5, w, h);
       ctx.restore();
     }
-    ctx.save();
-    ctx.globalCompositeOperation = 'screen';
-    const gx = this.canvasW * 0.5;
-    const gy = this.canvasH * 0.38;
-    for (let i = 0; i < 3; i++) {
-      const r = 80 + i * 55;
-      ctx.globalAlpha = 0.045 * alpha;
-      const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-      g.addColorStop(0, 'rgba(0,255,200,0.6)');
-      g.addColorStop(1, 'transparent');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(gx, gy, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    ctx.restore();
   }
   get alive() { return this.life > 0; }
 }
@@ -773,6 +790,10 @@ function renderLoop() {
     for (const hand of currentHands) {
       drawHandSkeleton(hand.landmarks);
     }
+  }
+
+  if (activeEffects.length > 0 && video.videoWidth > 0 && latestSegmentationMask) {
+    updatePersonCutout(video, latestSegmentationMask);
   }
 
   // Update + draw effects
@@ -853,6 +874,15 @@ function setupMediaPipe() {
     minTrackingConfidence: 0.5
   });
 
+  const selfieSegmentation = new SelfieSegmentation({
+    locateFile: file =>
+      `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`
+  });
+  selfieSegmentation.setOptions({ modelSelection: 0, selfieMode: true });
+  selfieSegmentation.onResults(results => {
+    latestSegmentationMask = results.segmentationMask;
+  });
+
   hands.onResults(results => {
     if (!mpReady) {
       mpReady = true;
@@ -889,7 +919,10 @@ function setupMediaPipe() {
   });
 
   const camera = new Camera(video, {
-    onFrame: async () => { await hands.send({ image: video }); },
+    onFrame: async () => {
+      await hands.send({ image: video });
+      await selfieSegmentation.send({ image: video });
+    },
     width: 1280,
     height: 720
   });
