@@ -6,7 +6,6 @@ const video   = document.getElementById('inputVideo');
 const canvas  = document.getElementById('outputCanvas');
 const ctx     = canvas.getContext('2d');
 
-// ── Resize canvas ──────────────────────────────────────
 function resizeCanvas() {
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -19,26 +18,22 @@ resizeCanvas();
 // ═══════════════════════════════════════════════════════
 
 const BUFFER_SIZE = 25;
-const gestureBuffer = []; // { keypoints, wrist, timestamp }[]
+const gestureBuffer = [];
 let lastGesture = null;
 let gestureTimeout = null;
 
 function pushFrame(hands) {
   const now = performance.now();
-  const frame = { hands, timestamp: now };
-  gestureBuffer.push(frame);
+  gestureBuffer.push({ hands, timestamp: now });
   if (gestureBuffer.length > BUFFER_SIZE) gestureBuffer.shift();
 }
 
-// ── Helpers ────────────────────────────────────────────
 function dist2D(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
 function getWrist(lm) { return lm[0]; }
 
-// ── Kage Bunshin seal (cruz: índice+médio estendidos, anel+mindinho fechados) ──
-/** SRP: apenas geometria do selo; não conhece buffer nem UI. */
 class KageBunshinSealAnalyzer {
   static fingerExtended(lm, tipId, mcpId) {
     const wrist = lm[0];
@@ -48,10 +43,6 @@ class KageBunshinSealAnalyzer {
     const wrist = lm[0];
     return dist2D(lm[tipId], wrist) < dist2D(lm[mcpId], wrist) * 1.22;
   }
-  /**
-   * Quão “selo de dois dedos” a mão está: índice+médio para fora, anel+mindinho mais fechados.
-   * Valores mais baixos ainda permitem detetar o gesto (câmera frontal distorce a vista).
-   */
   static twoFingerBarStrength(lm) {
     let s = 0;
     if (this.fingerExtended(lm, 8, 5)) s += 0.28;
@@ -60,17 +51,12 @@ class KageBunshinSealAnalyzer {
     if (this.fingerCurled(lm, 20, 17)) s += 0.22;
     return s;
   }
-  /** Direção do feixe índice+médio (2D imagem). */
   static barDirection(lm) {
     const mx = (lm[8].x + lm[12].x) * 0.5 - lm[0].x;
     const my = (lm[8].y + lm[12].y) * 0.5 - lm[0].y;
     const len = Math.hypot(mx, my) || 1e-6;
     return { x: mx / len, y: my / len };
   }
-  /**
-   * Cruz: pulsos relativamente perto + barras em ângulo (~perpendicular em 2D).
-   * Não exigimos “uma horizontal e outra vertical” — em webcam frontal isso falhava quase sempre.
-   */
   static scoreCrossSeal(h1lm, h2lm) {
     const b1 = this.twoFingerBarStrength(h1lm);
     const b2 = this.twoFingerBarStrength(h2lm);
@@ -110,8 +96,6 @@ function runGestureEngine() {
 
 const activeEffects = [];
 
-// ── Recorte da pessoa (MediaPipe Selfie Segmentation) ─────────────────
-/** Imagem já processada pelo mesmo grafo que a máscara (alinhamento pixel-a-pixel). */
 let latestSegImage = null;
 let latestSegmentationMask = null;
 let personCutoutCanvas = null;
@@ -126,10 +110,6 @@ function ensurePersonCutoutBuffer(w, h) {
   }
 }
 
-/**
- * Compõe imagem + máscara do *mesmo* callback do MediaPipe (não usar o <video> HTML:
- * o frame interno pode ter crop/escala diferente e deslocava o recorte).
- */
 function updatePersonCutout() {
   const img = latestSegImage;
   const mask = latestSegmentationMask;
@@ -183,16 +163,11 @@ class Particle {
   get alive() { return this.life > 0; }
 }
 
-/**
- * Kage Bunshin: ordem horizontal [pequeno][médio][pessoa real no centro][médio][pequeno].
- * Cantos menores; junto ao centro quase ao tamanho da figura na câmara.
- */
 class KageBunshinEffect {
-  constructor(videoEl, canvasW, canvasH) {
+  constructor(canvasW, canvasH) {
     this.life = 280;
     this.t = 0;
     this.particles = [];
-    this.video = videoEl;
     this.canvasW = canvasW;
     this.canvasH = canvasH;
     const W = canvasW;
@@ -252,7 +227,7 @@ class KageBunshinEffect {
 function spawnEffect() {
   const cw = canvas.width;
   const ch = canvas.height;
-  const push = () => activeEffects.push(new KageBunshinEffect(video, cw, ch));
+  const push = () => activeEffects.push(new KageBunshinEffect(cw, ch));
   if (video.videoWidth > 0 && video.videoHeight > 0) {
     push();
     return;
@@ -279,7 +254,6 @@ function renderLoop() {
   requestAnimationFrame(renderLoop);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw hand skeleton
   if (currentHands.length > 0) {
     for (const hand of currentHands) {
       drawHandSkeleton(hand.landmarks);
@@ -290,22 +264,15 @@ function renderLoop() {
     updatePersonCutout();
   }
 
-  // Update + draw effects
   for (let i = activeEffects.length - 1; i >= 0; i--) {
     activeEffects[i].update();
     activeEffects[i].draw(ctx);
     if (!activeEffects[i].alive) activeEffects.splice(i, 1);
   }
 
-  const charge = Math.min(100, gestureBuffer.length * (100/BUFFER_SIZE));
-  const chargeFill = document.getElementById('charge-bar-fill');
-  if (chargeFill) chargeFill.style.width = charge + '%';
-
-  // Limit active effects
   while (activeEffects.length > 6) activeEffects.shift();
 }
 
-// ── Draw skeleton ──────────────────────────────────────
 const HAND_CONNECTIONS = [
   [0,1],[1,2],[2,3],[3,4],
   [0,5],[5,6],[6,7],[7,8],
@@ -315,12 +282,10 @@ const HAND_CONNECTIONS = [
 ];
 
 function landmarkToCanvas(lm) {
-  // MediaPipe returns normalized [0,1], mirrored by CSS, so we keep x as-is
   return { x: lm.x * canvas.width, y: lm.y * canvas.height };
 }
 
 function drawHandSkeleton(landmarks) {
-  // Connections
   ctx.save();
   ctx.strokeStyle = 'rgba(0,200,255,0.5)';
   ctx.lineWidth = 1.5;
@@ -335,7 +300,6 @@ function drawHandSkeleton(landmarks) {
     ctx.stroke();
   }
   ctx.restore();
-  // Dots
   for (const lm of landmarks) {
     const p = landmarkToCanvas(lm);
     ctx.save();
@@ -352,8 +316,6 @@ function drawHandSkeleton(landmarks) {
 // ═══════════════════════════════════════════════════════
 // MEDIAPIPE SETUP
 // ═══════════════════════════════════════════════════════
-
-let mpReady = false;
 
 function setupMediaPipe() {
   const hands = new Hands({
@@ -379,38 +341,16 @@ function setupMediaPipe() {
   });
 
   hands.onResults(results => {
-    if (!mpReady) {
-      mpReady = true;
-      document.getElementById('dot-mp')?.classList.add('active');
-    }
-
     const detectedHands = results.multiHandLandmarks
-      ? results.multiHandLandmarks.map((lm, i) => ({
-          landmarks: lm,
-          handedness: results.multiHandedness?.[i]?.label || 'Unknown'
-        }))
+      ? results.multiHandLandmarks.map(lm => ({ landmarks: lm }))
       : [];
 
     currentHands = detectedHands;
-
-    const dotHands = document.getElementById('dot-hands');
-    if (dotHands) {
-      if (detectedHands.length > 0) {
-        dotHands.classList.add('active');
-        dotHands.classList.remove('warn');
-      } else {
-        dotHands.classList.remove('active');
-        dotHands.classList.add('warn');
-      }
-    }
-
-    // Push to gesture buffer
     pushFrame(detectedHands);
 
-    // Run gesture engine
     const gesture = runGestureEngine();
     if (gesture && gesture !== lastGesture) {
-      triggerGesture(gesture);
+      triggerGesture();
     }
   });
 
@@ -423,49 +363,30 @@ function setupMediaPipe() {
     height: 720
   });
 
-  camera.start()
-    .then(() => {
-      document.getElementById('dot-cam')?.classList.add('active');
-    })
-    .catch(err => {
-      console.error('Camera error:', err);
-      document.getElementById('dot-cam')?.classList.add('warn');
-    });
+  camera.start().catch(err => {
+    console.error('Camera error:', err);
+  });
 }
 
-// ── Trigger gesture ────────────────────────────────────
-const KAGEBUNSHIN_KANJI = '影分身の術 · EXÉRCITO DE CLONES';
-
-function triggerGesture(name) {
-  lastGesture = name;
+function triggerGesture() {
+  lastGesture = 'KAGEBUNSHIN';
   clearTimeout(gestureTimeout);
 
   spawnEffect();
 
-  // Update UI
   const display = document.getElementById('gesture-display');
   const nameEl  = document.getElementById('gesture-name');
-  const kanjiEl = document.getElementById('gesture-kanji');
 
   if (nameEl) {
     nameEl.className = 'KAGEBUNSHIN';
     nameEl.textContent = 'Kage Bunshin';
   }
-  if (kanjiEl) kanjiEl.textContent = KAGEBUNSHIN_KANJI;
-
   display?.classList.add('visible');
 
-  // Highlight card
-  document.querySelectorAll('.gesture-card').forEach(c => c.classList.remove('active-card'));
-  const card = document.getElementById('card-' + name);
-  if (card) card.classList.add('active-card');
-
-  // Screen flash
   flashScreen();
 
   gestureTimeout = setTimeout(() => {
     display?.classList.remove('visible');
-    document.querySelectorAll('.gesture-card').forEach(c => c.classList.remove('active-card'));
     lastGesture = null;
   }, 2200);
 }
@@ -474,13 +395,11 @@ const KAGEBUNSHIN_FLASH = 'rgba(0,232,168,0.14)';
 
 function flashScreen() {
   const flash = document.getElementById('combo-flash');
+  if (!flash) return;
   flash.style.background = KAGEBUNSHIN_FLASH;
   flash.style.opacity = '1';
   setTimeout(() => { flash.style.opacity = '0'; }, 150);
 }
 
-// ═══════════════════════════════════════════════════════
-// START — câmera e MediaPipe ao carregar
-// ═══════════════════════════════════════════════════════
 setupMediaPipe();
 renderLoop();

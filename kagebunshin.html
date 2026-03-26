@@ -8,68 +8,30 @@
 </head>
 <body>
 
-<!-- Scanline & vignette -->
 <div id="scanline"></div>
 <div id="vignette"></div>
 
-<!-- HUD Corners -->
 <div class="corner tl"></div>
 <div class="corner tr"></div>
 <div class="corner bl"></div>
 <div class="corner br"></div>
 
-<!-- Combo flash overlay -->
 <div id="combo-flash"></div>
 
-<!-- Camera zone -->
 <div id="camera-zone">
   <video id="inputVideo" autoplay muted playsinline></video>
   <canvas id="outputCanvas"></canvas>
 </div>
 
-<!-- HUD -->
 <div id="hud">
-  <!-- Top bar -->
-  <div id="topbar">
-    <!-- <div>
-      <div id="logo">CHAKRA<span>VISION</span></div>
-      <div id="logo-sub">KAGE BUNSHIN NO JUTSU</div>
-    </div>
-    <div id="status-row">
-      <div class="status-pill"><div class="dot" id="dot-cam"></div><span>CÂMERA</span></div>
-      <div class="status-pill"><div class="dot" id="dot-mp"></div><span>MEDIAPIPE</span></div>
-      <div class="status-pill"><div class="dot" id="dot-hands"></div><span>MÃO</span></div>
-    </div>
-  </div> -->
-
-  <!-- Center gesture display -->
   <div id="gesture-zone">
     <div id="gesture-display">
       <div id="gesture-name" class="KAGEBUNSHIN">Kage Bunshin No Jutsu</div>
     </div>
   </div>
-
-  <!-- Bottom bar -->
-  <!-- <div id="bottombar">
-    <div id="gesture-guide">
-      <div class="gesture-card KAGEBUNSHIN" id="card-KAGEBUNSHIN">
-        <div class="gesture-icon">👥</div>
-        <div class="gesture-info">
-          <div class="gesture-title">Kage Bunshin</div>
-          <div class="gesture-hint">Selo em cruz · índice e médio</div>
-        </div>
-      </div>
-    </div>
-    <div id="charge-container">
-      <div id="charge-label">Buffer de leitura</div>
-      <div id="charge-bar-bg"><div id="charge-bar-fill"></div></div>
-    </div>
-  </div> -->
 </div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/selfie_segmentation.js" crossorigin="anonymous"></script>
 
