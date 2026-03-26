@@ -691,14 +691,13 @@ class KageBunshinEffect {
     this.canvasH = canvasH;
     const W = canvasW;
     const H = canvasH;
-    const y = H * 0.48;
     const hPeq = H * 0.36;
     const hMed = H * 0.66;
     this.clones = [
-      { x: W * 0.11, y, targetH: hPeq },
-      { x: W * 0.29, y, targetH: hMed },
-      { x: W * 0.71, y, targetH: hMed },
-      { x: W * 0.89, y, targetH: hPeq }
+      { x: W * 0.11, targetH: hPeq },
+      { x: W * 0.29, targetH: hMed },
+      { x: W * 0.71, targetH: hMed },
+      { x: W * 0.89, targetH: hPeq }
     ];
   }
   _videoSize() {
@@ -737,13 +736,15 @@ class KageBunshinEffect {
     this.particles.forEach(p => p.draw(ctx));
     if (!src) return;
     const ar = vw / vh;
+    const footPad = Math.max(10, this.canvasH * 0.015);
     for (const c of this.clones) {
       const h = c.targetH * globalFade;
       const w = h * ar;
       const wobble = Math.sin(this.t * 0.06 + c.x) * 2;
+      const cy = this.canvasH - footPad - h * 0.5;
       ctx.save();
       ctx.globalAlpha = 0.92 * alpha * globalFade;
-      ctx.translate(c.x + wobble, c.y);
+      ctx.translate(c.x + wobble, cy);
       ctx.shadowColor = 'rgba(0,232,168,0.35)';
       ctx.shadowBlur = 18;
       ctx.drawImage(src, 0, 0, vw, vh, -w * 0.5, -h * 0.5, w, h);
