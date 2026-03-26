@@ -611,36 +611,42 @@ function runGestureEngine() {
 const activeEffects = [];
 
 // ── Recorte da pessoa (MediaPipe Selfie Segmentation) ─────────────────
+/** Imagem já processada pelo mesmo grafo que a máscara (alinhamento pixel-a-pixel). */
+let latestSegImage = null;
 let latestSegmentationMask = null;
 let personCutoutCanvas = null;
 let personCutoutCtx = null;
 
-function ensurePersonCutoutBuffer(vw, vh) {
-  if (!personCutoutCanvas || personCutoutCanvas.width !== vw || personCutoutCanvas.height !== vh) {
+function ensurePersonCutoutBuffer(w, h) {
+  if (!personCutoutCanvas || personCutoutCanvas.width !== w || personCutoutCanvas.height !== h) {
     personCutoutCanvas = document.createElement('canvas');
-    personCutoutCanvas.width = vw;
-    personCutoutCanvas.height = vh;
+    personCutoutCanvas.width = w;
+    personCutoutCanvas.height = h;
     personCutoutCtx = personCutoutCanvas.getContext('2d');
   }
 }
 
 /**
- * Atualiza canvas com só a pessoa (sem fundo), usando a máscara mais recente.
- * Retorna o canvas ou null se ainda não houver máscara/vídeo.
+ * Compõe imagem + máscara do *mesmo* callback do MediaPipe (não usar o <video> HTML:
+ * o frame interno pode ter crop/escala diferente e deslocava o recorte).
  */
-function updatePersonCutout(videoEl, mask) {
-  const vw = videoEl.videoWidth;
-  const vh = videoEl.videoHeight;
-  if (!vw || !vh || !mask) return null;
-  ensurePersonCutoutBuffer(vw, vh);
-  const mw = mask.width || mask.videoWidth || vw;
-  const mh = mask.height || mask.videoHeight || vh;
+function updatePersonCutout() {
+  const img = latestSegImage;
+  const mask = latestSegmentationMask;
+  if (!mask) return null;
+  const iw = img ? img.width : mask.width;
+  const ih = img ? img.height : mask.height;
+  if (iw < 2 || ih < 2) return null;
+  ensurePersonCutoutBuffer(iw, ih);
+  const mw = mask.width;
+  const mh = mask.height;
   const wctx = personCutoutCtx;
+  const source = img || video;
   wctx.save();
-  wctx.clearRect(0, 0, vw, vh);
-  wctx.drawImage(videoEl, 0, 0, vw, vh);
+  wctx.clearRect(0, 0, iw, ih);
+  wctx.drawImage(source, 0, 0, iw, ih);
   wctx.globalCompositeOperation = 'destination-in';
-  wctx.drawImage(mask, 0, 0, mw, mh, 0, 0, vw, vh);
+  wctx.drawImage(mask, 0, 0, mw, mh, 0, 0, iw, ih);
   wctx.globalCompositeOperation = 'source-over';
   wctx.restore();
   return personCutoutCanvas;
@@ -700,12 +706,6 @@ class KageBunshinEffect {
       { x: W * 0.89, targetH: hPeq }
     ];
   }
-  _videoSize() {
-    const vw = this.video.videoWidth;
-    const vh = this.video.videoHeight;
-    if (vw > 0 && vh > 0) return { vw, vh };
-    return null;
-  }
   update() {
     this.t++;
     this.life--;
@@ -723,19 +723,14 @@ class KageBunshinEffect {
     this.particles = this.particles.filter(p => { p.update(); return p.alive; });
   }
   draw(ctx) {
-    const size = this._videoSize();
-    if (!size) return;
-    const { vw, vh } = size;
     const alpha = Math.min(1, this.life / 35);
     const globalFade = Math.min(1, this.life / 40);
-    const src = personCutoutCanvas &&
-      personCutoutCanvas.width === vw &&
-      personCutoutCanvas.height === vh
-      ? personCutoutCanvas
-      : null;
+    const src = personCutoutCanvas && personCutoutCanvas.width > 2 ? personCutoutCanvas : null;
     this.particles.forEach(p => p.draw(ctx));
     if (!src) return;
-    const ar = vw / vh;
+    const iw = src.width;
+    const ih = src.height;
+    const ar = iw / ih;
     const footPad = Math.max(10, this.canvasH * 0.015);
     for (const c of this.clones) {
       const h = c.targetH * globalFade;
@@ -747,7 +742,7 @@ class KageBunshinEffect {
       ctx.translate(c.x + wobble, cy);
       ctx.shadowColor = 'rgba(0,232,168,0.35)';
       ctx.shadowBlur = 18;
-      ctx.drawImage(src, 0, 0, vw, vh, -w * 0.5, -h * 0.5, w, h);
+      ctx.drawImage(src, 0, 0, iw, ih, -w * 0.5, -h * 0.5, w, h);
       ctx.restore();
     }
   }
@@ -791,8 +786,8 @@ function renderLoop() {
     }
   }
 
-  if (activeEffects.length > 0 && video.videoWidth > 0 && latestSegmentationMask) {
-    updatePersonCutout(video, latestSegmentationMask);
+  if (activeEffects.length > 0 && latestSegmentationMask) {
+    updatePersonCutout();
   }
 
   // Update + draw effects
@@ -879,6 +874,7 @@ function setupMediaPipe() {
   });
   selfieSegmentation.setOptions({ modelSelection: 0, selfieMode: true });
   selfieSegmentation.onResults(results => {
+    latestSegImage = results.image || null;
     latestSegmentationMask = results.segmentationMask;
   });
 
