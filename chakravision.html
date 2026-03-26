@@ -678,8 +678,8 @@ class Particle {
 }
 
 /**
- * Kage Bunshin: 4 clones (2 à esquerda, 2 à direita do centro), só a pessoa
- * (recorte via MediaPipe Selfie Segmentation — sem fundo).
+ * Kage Bunshin: ordem horizontal [pequeno][médio][pessoa real no centro][médio][pequeno].
+ * Cantos menores; junto ao centro quase ao tamanho da figura na câmara.
  */
 class KageBunshinEffect {
   constructor(videoEl, canvasW, canvasH) {
@@ -689,17 +689,16 @@ class KageBunshinEffect {
     this.video = videoEl;
     this.canvasW = canvasW;
     this.canvasH = canvasH;
-    const cx = canvasW * 0.5;
-    const side = Math.min(canvasW * 0.26, 320);
-    const leftX = cx - side;
-    const rightX = cx + side;
-    const yTop = canvasH * 0.2;
-    const yBot = canvasH * 0.55;
+    const W = canvasW;
+    const H = canvasH;
+    const y = H * 0.48;
+    const hPeq = H * 0.36;
+    const hMed = H * 0.66;
     this.clones = [
-      { x: leftX, y: yTop },
-      { x: leftX, y: yBot },
-      { x: rightX, y: yTop },
-      { x: rightX, y: yBot }
+      { x: W * 0.11, y, targetH: hPeq },
+      { x: W * 0.29, y, targetH: hMed },
+      { x: W * 0.71, y, targetH: hMed },
+      { x: W * 0.89, y, targetH: hPeq }
     ];
   }
   _videoSize() {
@@ -730,8 +729,6 @@ class KageBunshinEffect {
     const { vw, vh } = size;
     const alpha = Math.min(1, this.life / 35);
     const globalFade = Math.min(1, this.life / 40);
-    const baseW = Math.min(300, this.canvasW * 0.24);
-    const baseH = baseW * (vh / vw);
     const src = personCutoutCanvas &&
       personCutoutCanvas.width === vw &&
       personCutoutCanvas.height === vh
@@ -739,10 +736,11 @@ class KageBunshinEffect {
       : null;
     this.particles.forEach(p => p.draw(ctx));
     if (!src) return;
+    const ar = vw / vh;
     for (const c of this.clones) {
-      const w = baseW * globalFade;
-      const h = baseH * globalFade;
-      const wobble = Math.sin(this.t * 0.06 + c.x) * 3;
+      const h = c.targetH * globalFade;
+      const w = h * ar;
+      const wobble = Math.sin(this.t * 0.06 + c.x) * 2;
       ctx.save();
       ctx.globalAlpha = 0.92 * alpha * globalFade;
       ctx.translate(c.x + wobble, c.y);
