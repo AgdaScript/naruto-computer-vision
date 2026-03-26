@@ -156,28 +156,32 @@
     .dot.active { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
     .dot.warn { background: var(--orange); box-shadow: 0 0 8px var(--orange-glow); }
 
-    /* ── Gesture display ── */
+    /* ── Gesture display: compacto, centro horizontal, canto inferior ── */
     #gesture-zone {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      pointer-events: none;
-      position: relative;
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      transform: translateX(-50%);
       z-index: 11;
+      pointer-events: none;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      width: max-content;
+      max-width: calc(100vw - 32px);
     }
 
     #gesture-display {
       text-align: center;
       opacity: 0;
-      transform: scale(0.8) translateY(20px);
+      transform: scale(0.92) translateY(12px);
       transition: opacity 0.2s, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      padding: 20px 40px;
-      border-radius: 16px;
+      padding: 8px 18px;
+      border-radius: 10px;
       background: rgba(3, 5, 7, 0.65);
       border: 1px solid rgba(0, 232, 168, 0.35);
-      box-shadow: 0 0 40px rgba(0, 232, 168, 0.15);
-      backdrop-filter: blur(12px);
+      box-shadow: 0 0 24px rgba(0, 232, 168, 0.12);
+      backdrop-filter: blur(10px);
     }
     #gesture-display.visible {
       opacity: 1;
@@ -187,9 +191,9 @@
     #gesture-name {
       font-family: var(--font-naruto);
       font-weight: 900;
-      font-size: clamp(36px, 7vw, 80px);
-      letter-spacing: 0.08em;
-      line-height: 1.15;
+      font-size: clamp(14px, 3.2vw, 28px);
+      letter-spacing: 0.06em;
+      line-height: 1.2;
       text-transform: none;
     }
     #gesture-name.KAGEBUNSHIN {
@@ -357,7 +361,7 @@
 <div id="hud">
   <!-- Top bar -->
   <div id="topbar">
-    <div>
+    <!-- <div>
       <div id="logo">CHAKRA<span>VISION</span></div>
       <div id="logo-sub">KAGE BUNSHIN NO JUTSU</div>
     </div>
@@ -366,18 +370,17 @@
       <div class="status-pill"><div class="dot" id="dot-mp"></div><span>MEDIAPIPE</span></div>
       <div class="status-pill"><div class="dot" id="dot-hands"></div><span>MÃO</span></div>
     </div>
-  </div>
+  </div> -->
 
   <!-- Center gesture display -->
   <div id="gesture-zone">
     <div id="gesture-display">
       <div id="gesture-name" class="KAGEBUNSHIN">Kage Bunshin</div>
-      <div id="gesture-kanji">影分身の術 · EXÉRCITO DE CLONES</div>
     </div>
   </div>
 
   <!-- Bottom bar -->
-  <div id="bottombar">
+  <!-- <div id="bottombar">
     <div id="gesture-guide">
       <div class="gesture-card KAGEBUNSHIN" id="card-KAGEBUNSHIN">
         <div class="gesture-icon">👥</div>
@@ -391,7 +394,7 @@
       <div id="charge-label">Buffer de leitura</div>
       <div id="charge-bar-bg"><div id="charge-bar-fill"></div></div>
     </div>
-  </div>
+  </div> -->
 </div>
 
 <!-- MediaPipe -->
@@ -700,9 +703,9 @@ function renderLoop() {
     if (!activeEffects[i].alive) activeEffects.splice(i, 1);
   }
 
-  // Update charge bar
   const charge = Math.min(100, gestureBuffer.length * (100/BUFFER_SIZE));
-  document.getElementById('charge-bar-fill').style.width = charge + '%';
+  const chargeFill = document.getElementById('charge-bar-fill');
+  if (chargeFill) chargeFill.style.width = charge + '%';
 
   // Limit active effects
   while (activeEffects.length > 6) activeEffects.shift();
@@ -784,7 +787,7 @@ function setupMediaPipe() {
   hands.onResults(results => {
     if (!mpReady) {
       mpReady = true;
-      document.getElementById('dot-mp').classList.add('active');
+      document.getElementById('dot-mp')?.classList.add('active');
     }
 
     const detectedHands = results.multiHandLandmarks
@@ -796,14 +799,15 @@ function setupMediaPipe() {
 
     currentHands = detectedHands;
 
-    // Update hand dot
     const dotHands = document.getElementById('dot-hands');
-    if (detectedHands.length > 0) {
-      dotHands.classList.add('active');
-      dotHands.classList.remove('warn');
-    } else {
-      dotHands.classList.remove('active');
-      dotHands.classList.add('warn');
+    if (dotHands) {
+      if (detectedHands.length > 0) {
+        dotHands.classList.add('active');
+        dotHands.classList.remove('warn');
+      } else {
+        dotHands.classList.remove('active');
+        dotHands.classList.add('warn');
+      }
     }
 
     // Push to gesture buffer
@@ -827,11 +831,11 @@ function setupMediaPipe() {
 
   camera.start()
     .then(() => {
-      document.getElementById('dot-cam').classList.add('active');
+      document.getElementById('dot-cam')?.classList.add('active');
     })
     .catch(err => {
       console.error('Camera error:', err);
-      document.getElementById('dot-cam').classList.add('warn');
+      document.getElementById('dot-cam')?.classList.add('warn');
     });
 }
 
@@ -849,11 +853,13 @@ function triggerGesture(name) {
   const nameEl  = document.getElementById('gesture-name');
   const kanjiEl = document.getElementById('gesture-kanji');
 
-  nameEl.className = 'KAGEBUNSHIN';
-  nameEl.textContent = 'Kage Bunshin';
-  kanjiEl.textContent = KAGEBUNSHIN_KANJI;
+  if (nameEl) {
+    nameEl.className = 'KAGEBUNSHIN';
+    nameEl.textContent = 'Kage Bunshin';
+  }
+  if (kanjiEl) kanjiEl.textContent = KAGEBUNSHIN_KANJI;
 
-  display.classList.add('visible');
+  display?.classList.add('visible');
 
   // Highlight card
   document.querySelectorAll('.gesture-card').forEach(c => c.classList.remove('active-card'));
@@ -864,7 +870,7 @@ function triggerGesture(name) {
   flashScreen();
 
   gestureTimeout = setTimeout(() => {
-    display.classList.remove('visible');
+    display?.classList.remove('visible');
     document.querySelectorAll('.gesture-card').forEach(c => c.classList.remove('active-card'));
     lastGesture = null;
   }, 2200);
