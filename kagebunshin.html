@@ -306,97 +306,6 @@
     .corner.bl { bottom: 14px; left: 14px; transform: scaleY(-1); }
     .corner.br { bottom: 14px; right: 14px; transform: scale(-1); }
 
-    /* ── Start screen ── */
-    #start-screen {
-      position: fixed;
-      inset: 0;
-      z-index: 100;
-      background: var(--bg);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 32px;
-    }
-    #start-logo {
-      font-family: var(--font-naruto);
-      font-weight: 900;
-      font-size: clamp(36px, 8vw, 80px);
-      letter-spacing: 8px;
-      text-align: center;
-      color: var(--blue);
-      text-shadow: 0 0 40px var(--blue-glow), 0 0 80px rgba(0,200,255,0.3);
-      animation: pulse-logo 3s ease-in-out infinite;
-    }
-    #start-logo .accent { color: var(--orange); text-shadow: 0 0 40px var(--orange-glow); }
-    @keyframes pulse-logo {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-    #start-subtitle {
-      font-size: 14px;
-      letter-spacing: 6px;
-      color: var(--muted);
-      text-transform: uppercase;
-      text-align: center;
-    }
-    #start-desc {
-      text-align: center;
-      color: var(--muted);
-      font-size: 15px;
-      line-height: 1.8;
-      max-width: 420px;
-    }
-    #start-desc strong { color: var(--text); }
-    #start-btn {
-      font-family: var(--font-naruto);
-      font-weight: 700;
-      font-size: 14px;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      padding: 16px 48px;
-      background: transparent;
-      border: 2px solid var(--blue);
-      color: var(--blue);
-      cursor: pointer;
-      border-radius: 4px;
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s;
-      pointer-events: all;
-    }
-    #start-btn::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: var(--blue);
-      transform: scaleX(0);
-      transform-origin: left;
-      transition: transform 0.3s;
-      z-index: -1;
-    }
-    #start-btn:hover {
-      color: var(--bg);
-      box-shadow: 0 0 30px var(--blue-glow);
-    }
-    #start-btn:hover::before { transform: scaleX(1); }
-
-    /* Decorative circles on start screen */
-    .deco-ring {
-      position: absolute;
-      border-radius: 50%;
-      border: 1px solid;
-      pointer-events: none;
-      animation: ring-spin linear infinite;
-    }
-    @keyframes ring-spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-    .deco-ring:nth-child(1) { width: 300px; height: 300px; border-color: rgba(0,200,255,0.08); animation-duration: 20s; top: 50%; left: 50%; margin: -150px 0 0 -150px; }
-    .deco-ring:nth-child(2) { width: 500px; height: 500px; border-color: rgba(0,200,255,0.05); animation-duration: 35s; animation-direction: reverse; top: 50%; left: 50%; margin: -250px 0 0 -250px; }
-    .deco-ring:nth-child(3) { width: 700px; height: 700px; border-color: rgba(255,107,0,0.04); animation-duration: 50s; top: 50%; left: 50%; margin: -350px 0 0 -350px; }
-
     /* ── Combo flash ── */
     #combo-flash {
       position: fixed;
@@ -483,20 +392,6 @@
       <div id="charge-bar-bg"><div id="charge-bar-fill"></div></div>
     </div>
   </div>
-</div>
-
-<!-- Start Screen -->
-<div id="start-screen">
-  <div class="deco-ring"></div>
-  <div class="deco-ring"></div>
-  <div class="deco-ring"></div>
-  <div id="start-logo">CHAKRA<br/><span class="accent">VISION</span></div>
-  <div id="start-subtitle">Kage Bunshin no Jutsu</div>
-  <div id="start-desc">
-    Faça o <strong>selo em cruz</strong> com as duas mãos (índice e médio) para invocar clones na tela.<br/>
-    <strong>MediaPipe</strong> · detecção em tempo real
-  </div>
-  <button id="start-btn">INICIAR SISTEMA</button>
 </div>
 
 <!-- MediaPipe -->
@@ -985,16 +880,10 @@ function flashScreen() {
 }
 
 // ═══════════════════════════════════════════════════════
-// START
+// START — câmera e MediaPipe ao carregar
 // ═══════════════════════════════════════════════════════
-document.getElementById('start-btn').addEventListener('click', () => {
-  const startScreen = document.getElementById('start-screen');
-  startScreen.style.transition = 'opacity 0.8s';
-  startScreen.style.opacity = '0';
-  setTimeout(() => { startScreen.style.display = 'none'; }, 800);
-  setupMediaPipe();
-  renderLoop();
-});
+setupMediaPipe();
+renderLoop();
 </script>
 </body>
 </html>
