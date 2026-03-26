@@ -379,7 +379,7 @@ function triggerGesture() {
 
   if (nameEl) {
     nameEl.className = 'KAGEBUNSHIN';
-    nameEl.textContent = 'Kage Bunshin';
+    nameEl.textContent = 'kagebunshin no jutsu';
   }
   display?.classList.add('visible');
 
