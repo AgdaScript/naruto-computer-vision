@@ -176,12 +176,11 @@
       opacity: 0;
       transform: scale(0.92) translateY(12px);
       transition: opacity 0.2s, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-      padding: 8px 18px;
-      border-radius: 10px;
-      background: rgba(3, 5, 7, 0.65);
-      border: 1px solid rgba(0, 232, 168, 0.35);
-      box-shadow: 0 0 24px rgba(0, 232, 168, 0.12);
-      backdrop-filter: blur(10px);
+      padding: 4px 8px;
+      background: none;
+      border: none;
+      box-shadow: none;
+      backdrop-filter: none;
     }
     #gesture-display.visible {
       opacity: 1;
@@ -197,11 +196,11 @@
       text-transform: none;
     }
     #gesture-name.KAGEBUNSHIN {
-      color: #00e8a8;
+      color: #ff7420;
       text-shadow:
-        0 0 30px rgba(0,232,168,0.85),
-        0 0 80px rgba(0,200,160,0.45),
-        0 2px 4px rgba(0,0,0,0.8);
+        0 0 24px rgba(255, 116, 32, 0.75),
+        0 0 48px rgba(255, 116, 32, 0.35),
+        0 2px 6px rgba(0, 0, 0, 0.65);
     }
 
     #gesture-kanji {
@@ -375,7 +374,7 @@
   <!-- Center gesture display -->
   <div id="gesture-zone">
     <div id="gesture-display">
-      <div id="gesture-name" class="KAGEBUNSHIN">Kage Bunshin</div>
+      <div id="gesture-name" class="KAGEBUNSHIN">Kage Bunshin No Jutsu</div>
     </div>
   </div>
 
