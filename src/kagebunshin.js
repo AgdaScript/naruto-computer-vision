@@ -26,9 +26,12 @@ resizeCanvas();
 // ═══════════════════════════════════════════════════════
 
 const BUFFER_SIZE = 25;
+const CLONE_DELAY_MS = 2000;
+
 const gestureBuffer = [];
 let lastGesture = null;
 let gestureTimeout = null;
+let cloneSpawnTimer = null;
 
 function pushFrame(hands) {
   const now = performance.now();
@@ -379,9 +382,13 @@ function setupMediaPipe() {
 function triggerGesture() {
   lastGesture = 'KAGEBUNSHIN';
   clearTimeout(gestureTimeout);
+  clearTimeout(cloneSpawnTimer);
 
   playJutsuSfx();
-  spawnEffect();
+  cloneSpawnTimer = setTimeout(() => {
+    cloneSpawnTimer = null;
+    spawnEffect();
+  }, CLONE_DELAY_MS);
 
   const display = document.getElementById('gesture-display');
   const nameEl  = document.getElementById('gesture-name');
