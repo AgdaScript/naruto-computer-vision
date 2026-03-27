@@ -6,6 +6,14 @@ const video   = document.getElementById('inputVideo');
 const canvas  = document.getElementById('outputCanvas');
 const ctx     = canvas.getContext('2d');
 
+const jutsuSfx = new Audio('../audio/kagebunshin-audio-efect.mp3');
+jutsuSfx.preload = 'auto';
+
+function playJutsuSfx() {
+  jutsuSfx.currentTime = 0;
+  jutsuSfx.play().catch(() => {});
+}
+
 function resizeCanvas() {
   canvas.width  = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -372,6 +380,7 @@ function triggerGesture() {
   lastGesture = 'KAGEBUNSHIN';
   clearTimeout(gestureTimeout);
 
+  playJutsuSfx();
   spawnEffect();
 
   const display = document.getElementById('gesture-display');
